@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Face Filter Application</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #74ebd5, #ACB6E5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .button {
+            padding: 12px 30px;
+            margin: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: white;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0px 8px 15px rgba(0, 123, 255, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+            box-shadow: 0px 15px 20px rgba(0, 123, 255, 0.6);
+            transform: translateY(-3px);
+        }
+
+        .button:disabled {
+            background-color: rgba(0, 123, 255, 0.6);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #videoContainer {
+            display: none;
+            margin-top: 20px;
+            position: relative;
+        }
+
+        video {
+            width: 640px;
+            height: 480px;
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        #processedImage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 640px;
+            height: 480px;
+            border-radius: 10px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1,
+        .button,
+        #videoContainer {
+            animation: fadeIn 1s ease;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            video,
+            #processedImage {
+                width: 100%;
+                height: auto;
+            }
+
+            .button {
+                width: 80%;
+                font-size: 1.2rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+
+        /* Header section with full-width and responsive design */
+        .header {
+            background-color: black;
+            width: 100%;
+            max-width: 100%;
+            padding: 20px 0;
+            box-sizing: border-box;
+            color: white;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Logo and company name styling */
+        .logo-company {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Logo styling with responsiveness */
+        .logo-img {
+            width: 100px;
+            height: auto;
+            margin-right: 15px;
+            border-radius: 50%;
+        }
+
+        /* Company name styling */
+        .company-name h2 {
+            color: red;
+            font-size: 2rem;
+            margin: 0;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 0, 0, 0.6);
+        }
+
+        /* Adjustments for mobile screens */
+        @media (max-width: 768px) {
+            .logo-company {
+                flex-direction: column;
+            }
+
+            .logo-img {
+                width: 80px;
+                margin-bottom: 10px;
+            }
+
+            .company-name h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header section with logo and company name -->
+     <div>
+    <header class="header">
+        <div class="logo-company">
+            <div class="logo">
+                <img src="https://media.licdn.com/dms/image/v2/D4E0BAQHrIyFNvHS6Uw/company-logo_200_200/company-logo_200_200/0/1716388167511/doss_in_logo?e=1734566400&v=beta&t=FPrhon5UqDcCtq3jcFO581E3VW7dB5TbngAYP9sqVv4" alt="DOSS Logo" class="logo-img">
+            </div>
+            <div class="company-name">
+                <h2>DOSS</h2>
+            </div>
+        </div>
+    </header>
+
+    <h1>Face Filter Application</h1>
+    <button class="button" id="startButton">Start</button>
+    <button class="button" id="applyFilterButton" disabled>Apply Filter</button>
+    <button class="button" id="captureButton" disabled>Capture Image</button>
+
+    <div id="videoContainer">
+        <video id="videoElement" autoplay></video>
+    </div>
+
+    <!-- Include Socket.IO -->
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
+    <script>
+        let videoStream;
+        let socket;
+        let filterApplied = false;
+        let lastProcessedFrame = null;  // Store the last processed frame
+
+        // Start button functionality
+        document.getElementById('startButton').addEventListener('click', async () => {
+            const videoElement = document.getElementById('videoElement');
+            videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoElement.srcObject = videoStream;
+
+            // Show the video container
+            document.getElementById('videoContainer').style.display = 'block';
+
+            // Enable the other buttons
+            document.getElementById('applyFilterButton').disabled = false;
+            document.getElementById('captureButton').disabled = false;
+        });
+
+        // Apply filter button functionality
+        document.getElementById('applyFilterButton').addEventListener('click', () => {
+            filterApplied = !filterApplied;
+            if (filterApplied) {
+                document.getElementById('applyFilterButton').innerText = 'Stop Filter';
+                startStreaming();
+            } else {
+                document.getElementById('applyFilterButton').innerText = 'Apply Filter';
+                stopStreaming();
+            }
+        });
+
+        function startStreaming() {
+            const videoElement = document.getElementById('videoElement');
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth || 640;
+            canvas.height = videoElement.videoHeight || 480;
+            const context = canvas.getContext('2d');
+
+            socket = io.connect(location.origin);
+
+            socket.on('connect', function () {
+                console.log('Connected to server');
+            });
+
+            socket.on('response_frame', function (data) {
+                // Receive processed frame and display
+                const img = document.getElementById('processedImage');
+                const imgData = 'data:image/jpeg;base64,' + data;
+
+                if (!img) {
+                    const newImg = document.createElement('img');
+                    newImg.id = 'processedImage';
+                    newImg.style.position = 'absolute';
+                    newImg.style.top = '0px';
+                    newImg.style.left = '0px';
+                    newImg.width = canvas.width;
+                    newImg.height = canvas.height;
+                    document.getElementById('videoContainer').appendChild(newImg);
+                    newImg.src = imgData;
+                } else {
+                    img.src = imgData;
+                }
+
+                // Store the last processed frame for capture
+                lastProcessedFrame = imgData;
+            });
+
+            function sendFrame() {
+                if (!filterApplied) {
+                    return;
+                }
+                context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+                const base64Data = dataURL.split(',')[1];
+                socket.emit('frame', base64Data);
+                requestAnimationFrame(sendFrame);
+            }
+
+            sendFrame();
+        }
+
+        function stopStreaming() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+            const img = document.getElementById('processedImage');
+            if (img) {
+                img.remove();
+            }
+        }
+
+        // Capture image button functionality
+        document.getElementById('captureButton').addEventListener('click', () => {
+            if (!lastProcessedFrame) {
+                alert("No processed frame available to capture.");
+                return;
+            }
+
+            // Send the base64-encoded processed image to the server
+            fetch('/capture-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: lastProcessedFrame.split(',')[1] }) // Send only the base64 data part
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Image captured and uploaded successfully!');
+                    } else {
+                        alert('Failed to capture image: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while capturing the image.');
+                });
+        });
+    </script>
+</body>
+
+</html>
